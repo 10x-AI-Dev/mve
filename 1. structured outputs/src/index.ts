@@ -15,6 +15,7 @@ async function main(repoUrl: string) {
 
   FileUtils.ensureDirectoryExists('./out');
 
+  // 1. Generate the OpenAI schema
   const schema = generateOpenAiSchema();
   if (!schema) {
     return;
@@ -28,11 +29,15 @@ async function main(repoUrl: string) {
   }
   ``;
 
+  // 2. Get GitHub data
   const githubData = await getGitHubData(owner, repo);
+
+  // 3. Prepare the system prompt by repalcing tokens
   const systemPrompt = replaceTokens(baseSystemPrompt, {
     labels: githubData.labels.map((label) => `- ${label.name}: ${label.description}`).join('\n')
   });
 
+  // 4. Get triage metadata (structured output) for each issue
   const triageData = await Promise.all(
     githubData.issues
       .slice(0, 5)
@@ -55,6 +60,7 @@ async function main(repoUrl: string) {
 }
 
 function generateOpenAiSchema() {
+  // Make sure your model has no optional properties. All properties should be required but can be nullable.
   const filePath = path.resolve('./src/models/issue-triage-metadata.ts');
 
   const config = {
@@ -68,6 +74,7 @@ function generateOpenAiSchema() {
   if (fs.existsSync(`./out/${fileName}.json`)) {
     rawSchema = JSON.parse(fs.readFileSync(`./out/${fileName}.json`, 'utf-8'));
   } else {
+    // --- Core logic to generate schema using ts-json-schema-generator ---
     rawSchema = createGenerator(config).createSchema(config.type);
     if (!rawSchema || !rawSchema.definitions) {
       logger.error('Failed to generate schema.');
@@ -109,7 +116,7 @@ async function getIssueTriageMetadata(
   });
 
   const config: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
-    model: 'gpt-4o-2024-08-06',
+    model: 'gpt-4o-2024-08-06', // Make sure to use the latest 4o `2024-08-06` model
     messages: [
       {
         role: 'system',
@@ -121,17 +128,17 @@ async function getIssueTriageMetadata(
       }
     ],
     response_format: {
-      type: 'json_schema',
-      json_schema: schema
+      type: 'json_schema', // Use the JSON schema format
+      json_schema: schema // Use the generated schema
     }
   };
 
-  const res = await openai.beta.chat.completions.parse<
+  const res = await openai.beta.chat.completions.parse< // Use the beta namespace and the parse method
     OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
     IssueTriageMetadata
   >(config);
 
-  const resData = res.choices[0].message.parsed;
+  const resData = res.choices[0].message.parsed; // Get the parsed data from the response
 
   fs.writeFileSync(
     `./out/llm-run-log_id${id}_${new Date().getTime()}.json`,
