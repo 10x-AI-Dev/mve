@@ -1,0 +1,8 @@
+Extract and structure relevant data from the provided GitHub issue.
+
+Use the available repository labels to assign the most appropriate tags. 
+
+Ensure that the output is accurate, concise, and actionable for issue triaging and automatic labeling.
+
+Available Labels:
+{{labels}}
